@@ -17,20 +17,21 @@
  */
 
 
-import GLib from 'gi://GLib';
-import { MediaIndicator } from './ui/panel.js';
-import * as Main from 'resource:///org/gnome/shell/ui/main.js';
-import { Extension } from 'resource:///org/gnome/shell/extensions/extension.js';
+const { GLib } = imports.gi;
+const Main = imports.ui.main;
+const ExtensionUtils = imports.misc.extensionUtils;
+const Me = ExtensionUtils.getCurrentExtension();
+const { MediaIndicator } = Me.imports.ui.panel;
 
 
-export default class MyMediaExtension extends Extension {
+class MyMediaExtension {
 
     // -----------------------------------------------------------------------
     // Extension lifecycle
     // -----------------------------------------------------------------------
 
     enable() {
-        this._settings = this.getSettings();
+        this._settings = ExtensionUtils.getSettings();
         this._setupIndicator();
 
         // Re-create the indicator whenever the panel position setting changes
@@ -38,7 +39,10 @@ export default class MyMediaExtension extends Extension {
     }
 
     disable() {
-        if (this._posId) this._settings.disconnect(this._posId);
+        if (this._posId && this._settings) {
+            this._settings.disconnect(this._posId);
+            this._posId = null;
+        }
         this._removeIndicator();
         this._settings = null;
     }
@@ -119,4 +123,9 @@ export default class MyMediaExtension extends Extension {
             this._indicator = null;
         }
     }
+}
+
+
+function init() {
+    return new MyMediaExtension();
 }

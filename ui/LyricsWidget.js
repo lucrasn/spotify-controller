@@ -13,14 +13,10 @@
 * along with this program. If not, see https://www.gnu.org/licenses/. */
 
 
-import St from 'gi://St';
-import GLib from 'gi://GLib';
-import Pango from 'gi://Pango';
-import GObject from 'gi://GObject';
-import PangoCairo from 'gi://PangoCairo';
+const { St, GLib, Pango, GObject, PangoCairo } = imports.gi;
 
 
-export const LyricsWidget = GObject.registerClass({
+var LyricsWidget = GObject.registerClass({
     GTypeName: 'LyricsWidget'
 }, class LyricsWidget extends St.DrawingArea {
 

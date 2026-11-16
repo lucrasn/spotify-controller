@@ -4,17 +4,17 @@
 
 # Spotify Controller
 
-**Premium Spotify integration for GNOME Shell**
+**Premium Spotify integration for GNOME Shell (GNOME 42 Backport Fork)**
 
-A deeply customizable music player that lives in your panel - with ambient visuals, synced lyrics, smart playlists, and a glassmorphism UI built for modern desktops.
+A deeply customizable music player that lives in your panel - with ambient visuals, synced lyrics, smart playlists, and a glassmorphism UI adapted to run on **GNOME Shell 42**.
 
-[![GNOME Shell](https://img.shields.io/badge/GNOME_Shell-45_|_46_|_47_|_48_|_49_|_50-4A86CF?style=flat-square&logo=gnome&logoColor=white)](https://extensions.gnome.org/extension/9315/spotify-controller/)
+[![GNOME Shell](https://img.shields.io/badge/GNOME_Shell-42-4A86CF?style=flat-square&logo=gnome&logoColor=white)](#gnome-42-fork-changes)
 [![License](https://img.shields.io/badge/License-GPL_3.0-green?style=flat-square)](LICENSE)
-[![GitHub Sponsors](https://img.shields.io/badge/Sponsor-❤️-EA4AAA?style=flat-square)](https://github.com/sponsors/NarkAgni)
+[![Upstream](https://img.shields.io/badge/Upstream-NarkAgni%2Fspotify--controller-555555?style=flat-square&logo=github)](https://github.com/NarkAgni/spotify-controller)
 
 <br>
 
-[Installation](#installation) · [Features](#features) · [Usage](#usage) · [Support](#support)
+[GNOME 42 Changes](#gnome-42-fork-changes) · [Installation](#installation) · [Features](#features) · [Usage](#usage) · [Support](#support)
 
 </div>
 
@@ -23,6 +23,17 @@ A deeply customizable music player that lives in your panel - with ambient visua
 ## Overview
 
 Spotify Controller is a premium GNOME Shell extension that transforms your music experience. It brings a full-featured player directly into your desktop - complete with ambient album art backgrounds, real-time synchronized lyrics, a multi-playlist manager, and a glassmorphic UI that looks stunning against any wallpaper. Built for aesthetics, power, and zero friction.
+
+> **Note:** This repository is a **GNOME Shell 42** fork of [NarkAgni/spotify-controller](https://github.com/NarkAgni/spotify-controller) (whose upstream release targets GNOME Shell 45–50).
+
+### GNOME 42 Fork Changes
+
+To make the extension compatible with GNOME Shell 42 (e.g., Ubuntu 22.04 LTS / GJS 1.72), the `gnome-42` branch includes the following backports:
+
+- **Legacy GJS Modules & Lifecycle:** Converted ESM `import`/`export` syntax across all modules to `imports.*`, `Me.imports`, `ExtensionUtils`, and `init()` / `enable()` / `disable()` entrypoints (`metadata.json` updated to `"shell-version": ["42"]`).
+- **libsoup 2.4 HTTP Client (`core/http.js`):** Replaced `libsoup 3.0` (`send_and_read_async`) with `libsoup 2.4` (`queue_message`) for fetching album art and `lrclib.net` synced lyrics.
+- **Preferences UI (`libadwaita 1.1` / `GTK 4.6`):** Replaced newer widgets in `prefs.js` (`Adw.SwitchRow`, `Adw.EntryRow`, `Adw.ExpanderRow.add_suffix`, `Gtk.ColorDialogButton`, `Gtk.FontDialogButton`, and `new Gtk.StringList({ strings })`) with `GTK 4.6` / `libadwaita 1.1` equivalents (`Adw.ActionRow` + `Gtk.Switch`/`Gtk.Entry`, `add_action`, `Gtk.ColorButton`, `Gtk.FontButton`, and `Gtk.StringList.new`).
+- **GNOME 42 Shell Compatibility:** Updated `St.ScrollView` child attachment to `add_actor()`, guarded `global.sync_pointer()`, added `Gio._promisify` for `Gio.File.prototype.read_async`, and disconnected `GSettings` signal handlers cleanly on `destroy()`.
 
 <div align="center">
   <img src="media/panel.png" alt="Panel View" width="100%" style="border-radius: 10px; margin: 12px 0;">
@@ -131,21 +142,15 @@ Open the Spotify Controller preferences to fine-tune everything:
 
 ## Installation
 
-### From GNOME Extensions *(recommended)*
-
-<div align="center">
-
-[![Get it on GNOME Extensions](https://img.shields.io/badge/GNOME_Extensions-Install_Spotify_Controller-4A86CF?style=for-the-badge&logo=gnome&logoColor=white)](https://extensions.gnome.org/extension/9315/spotify-controller/)
-
-</div>
+> **GNOME Extensions Website:** The [official listing on GNOME Extensions](https://extensions.gnome.org/extension/9315/spotify-controller/) is maintained upstream for **GNOME Shell 45–50** and will not load on GNOME 42. Use the source installation below for this fork.
 
 ### From Source
 
-**Requirements:** GNOME Shell 45–50 · `libglib2.0-bin` · Spotify (App or Web Player)
+**Requirements:** GNOME Shell 42 · `libglib2.0-bin` · `gir1.2-soup-2.4` · `gir1.2-adw-1` · `gir1.2-gtk-4.0` · Spotify (App or Web Player)
 
 ```bash
-# 1. Clone the repository
-git clone https://github.com/NarkAgni/spotify-controller.git
+# 1. Clone this fork (gnome-42 branch)
+git clone -b gnome-42 https://github.com/lucrasn/spotify-controller.git
 cd spotify-controller
 
 # 2. Install
@@ -191,5 +196,7 @@ Spotify Controller is free and open-source. If it enhances your music experience
 <div align="center">
 
 Made with ❤️ by **[NarkAgni](https://github.com/NarkAgni)** · GPL-3.0
+
+GNOME 42 backport maintained in **[lucrasn/spotify-controller](https://github.com/lucrasn/spotify-controller)**
 
 </div>

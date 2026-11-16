@@ -1,15 +1,12 @@
-import Adw from 'gi://Adw';
-import Gio from 'gi://Gio';
-import Gtk from 'gi://Gtk';
-import Gdk from 'gi://Gdk';
-import Pango from 'gi://Pango';
-import { ExtensionPreferences } from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
+const { Adw, Gio, Gtk, Gdk, Pango, GLib } = imports.gi;
+const ExtensionUtils = imports.misc.extensionUtils;
+const Me = ExtensionUtils.getCurrentExtension();
 
 
-export default class SpotifyControllerPrefs extends ExtensionPreferences {
+class SpotifyControllerPrefs {
 
     fillPreferencesWindow(window) {
-        const settings = this.getSettings();
+        const settings = ExtensionUtils.getSettings();
         window.search_enabled = true;
 
         const createResetBtn = this._makeResetBtn(settings);
@@ -112,7 +109,7 @@ export default class SpotifyControllerPrefs extends ExtensionPreferences {
         const posRow = new Adw.ComboRow({
             title: 'Panel Position',
             icon_name: 'view-dual-symbolic',
-            model: new Gtk.StringList({ strings: ['Left', 'Center (Before)', 'Center (After)', 'Right'] })
+            model: Gtk.StringList.new(['Left', 'Center (Before)', 'Center (After)', 'Right'])
         });
         const posValues = ['left', 'center-before', 'center-after', 'right'];
         const currentPos = settings.get_string('position');
@@ -124,7 +121,7 @@ export default class SpotifyControllerPrefs extends ExtensionPreferences {
             title: 'Layout Order',
             subtitle: 'Buttons before or after the track label',
             icon_name: 'format-justify-left-symbolic',
-            model: new Gtk.StringList({ strings: ['Buttons → Label', 'Label → Buttons'] })
+            model: Gtk.StringList.new(['Buttons → Label', 'Label → Buttons'])
         });
         const layoutValues = ['buttons-start', 'buttons-end'];
         const currentLayout = settings.get_string('layout-order');
@@ -158,8 +155,14 @@ export default class SpotifyControllerPrefs extends ExtensionPreferences {
         page.add(group);
 
         const addToggle = (key, title, icon) => {
-            const row = new Adw.SwitchRow({ title, icon_name: icon });
-            settings.bind(key, row, 'active', Gio.SettingsBindFlags.DEFAULT);
+            const row = new Adw.ActionRow({ title, icon_name: icon });
+            const toggle = new Gtk.Switch({
+                active: settings.get_boolean(key),
+                valign: Gtk.Align.CENTER,
+            });
+            settings.bind(key, toggle, 'active', Gio.SettingsBindFlags.DEFAULT);
+            row.add_suffix(toggle);
+            row.activatable_widget = toggle;
             group.add(row);
         };
 
@@ -176,10 +179,9 @@ export default class SpotifyControllerPrefs extends ExtensionPreferences {
 
         const actions = ['none', 'menu', 'play-pause', 'next', 'prev', 'playlist'];
         const labels = ['Do Nothing', 'Open Menu', 'Play / Pause', 'Next Track', 'Previous Track', 'Open Playlist'];
-        const list = new Gtk.StringList({ strings: labels });
 
         const addCombo = (title, key) => {
-            const row = new Adw.ComboRow({ title, model: list });
+            const row = new Adw.ComboRow({ title, model: Gtk.StringList.new(labels) });
             let current = 'menu';
             try { 
                 current = settings.get_string(key); 
@@ -217,9 +219,12 @@ export default class SpotifyControllerPrefs extends ExtensionPreferences {
         const group = new Adw.PreferencesGroup({ title: 'Header Settings' });
         page.add(group);
 
-        const headerEntry = new Adw.EntryRow({ title: 'Popup Header Text' });
+        const headerRow = new Adw.ActionRow({ title: 'Popup Header Text', icon_name: 'format-text-symbolic' });
+        const headerEntry = new Gtk.Entry({ valign: Gtk.Align.CENTER, width_chars: 16 });
         settings.bind('custom-header-text', headerEntry, 'text', Gio.SettingsBindFlags.DEFAULT);
-        group.add(headerEntry);
+        headerRow.add_suffix(headerEntry);
+        headerRow.add_suffix(createResetBtn('custom-header-text'));
+        group.add(headerRow);
 
         const headerSizeRow = new Adw.ActionRow({ title: 'Header Font Size', icon_name: 'format-text-larger-symbolic' });
         const headerSizeSpin = new Gtk.SpinButton({ 
@@ -246,7 +251,7 @@ export default class SpotifyControllerPrefs extends ExtensionPreferences {
         const bgModeRow = new Adw.ComboRow({
             title: 'Background Mode',
             icon_name: 'preferences-desktop-wallpaper-symbolic',
-            model: new Gtk.StringList({ strings: ['Ambient (Cover Art)', 'Custom Color'] })
+            model: Gtk.StringList.new(['Ambient (Cover Art)', 'Custom Color'])
         });
         
         const bgModes = ['ambient', 'custom'];
@@ -281,7 +286,7 @@ export default class SpotifyControllerPrefs extends ExtensionPreferences {
             icon_name: 'image-x-generic-symbolic',
             show_enable_switch: false
         });
-        expander.add_suffix(createGroupReset(keys));
+        expander.add_action(createGroupReset(keys));
         parentGroup.add(expander);
 
         const artSizeRow = new Adw.ActionRow({ title: 'Cover Art Size (px)', icon_name: 'image-x-generic-symbolic' });
@@ -354,27 +359,30 @@ export default class SpotifyControllerPrefs extends ExtensionPreferences {
             icon_name: 'preferences-desktop-font-symbolic',
             show_enable_switch: false
         });
-        expander.add_suffix(createGroupReset(keys));
+        expander.add_action(createGroupReset(keys));
         parentGroup.add(expander);
 
         const fontRow = new Adw.ActionRow({
             title: 'Global Font Family',
             icon_name: 'preferences-desktop-font-symbolic',
         });
-        const fontDialog = new Gtk.FontDialog();
-        const fontBtn = new Gtk.FontDialogButton({ dialog: fontDialog, valign: Gtk.Align.CENTER });
-        const savedFont = settings.get_string('custom-font-family');
-        
-        if (savedFont) {
-            try { 
-                fontBtn.set_font_desc(Pango.FontDescription.from_string(savedFont)); 
-            } catch (e) { }
-        }
-        fontBtn.connect('notify::font-desc', () => {
+        const fontBtn = new Gtk.FontButton({ valign: Gtk.Align.CENTER, use_font: true });
+        const syncFontBtn = () => {
+            const savedFont = settings.get_string('custom-font-family');
+            if (savedFont) {
+                try {
+                    fontBtn.set_font_desc(Pango.FontDescription.from_string(savedFont));
+                } catch (e) { }
+            }
+        };
+        syncFontBtn();
+        fontBtn.connect('font-set', () => {
             const desc = fontBtn.get_font_desc();
             if (desc) settings.set_string('custom-font-family', desc.get_family());
         });
+        settings.connect('changed::custom-font-family', syncFontBtn);
         fontRow.add_suffix(fontBtn);
+        fontRow.add_suffix(createResetBtn('custom-font-family'));
         expander.add_row(fontRow);
 
         const addTextRow = (title, sizeKey, colorKey, defaultColor, sizeMin, sizeMax, icon) => {
@@ -419,7 +427,7 @@ export default class SpotifyControllerPrefs extends ExtensionPreferences {
             icon_name: 'format-text-symbolic',
             show_enable_switch: false
         });
-        expander.add_suffix(createGroupReset(keys));
+        expander.add_action(createGroupReset(keys));
         parentGroup.add(expander);
 
         const addLyricRow = (title, colorKey, sizeKey, defaultColor, sizeMin, sizeMax) => {
@@ -466,13 +474,13 @@ export default class SpotifyControllerPrefs extends ExtensionPreferences {
             icon_name: 'preferences-system-windows-symbolic',
             show_enable_switch: false
         });
-        expander.add_suffix(createGroupReset(keys));
+        expander.add_action(createGroupReset(keys));
         parentGroup.add(expander);
 
         const styleRow = new Adw.ComboRow({
             title: 'Slider Style',
             icon_name: 'audio-volume-high-symbolic',
-            model: new Gtk.StringList({ strings: ['Wavy', 'Straight'] })
+            model: Gtk.StringList.new(['Wavy', 'Straight'])
         });
         const styleValues = ['wavy', 'straight'];
         const currentStyle = settings.get_string('slider-style');
@@ -512,7 +520,7 @@ export default class SpotifyControllerPrefs extends ExtensionPreferences {
         const thumbRow = new Adw.ComboRow({
             title: 'Thumb Shape',
             icon_name: 'media-record-symbolic',
-            model: new Gtk.StringList({ strings: ['Round Circle', 'Vertical Line'] })
+            model: Gtk.StringList.new(['Round Circle', 'Vertical Line'])
         });
         const thumbValues = ['round', 'vertical'];
         const currentThumb = settings.get_string('thumb-style');
@@ -591,7 +599,7 @@ export default class SpotifyControllerPrefs extends ExtensionPreferences {
                 icon_name: icon,
                 show_enable_switch: false
             });
-            expander.add_suffix(createGroupReset(keys));
+            expander.add_action(createGroupReset(keys));
             mainGroup.add(expander);
 
             const dirs = [
@@ -650,7 +658,7 @@ export default class SpotifyControllerPrefs extends ExtensionPreferences {
             margin_bottom: 12,
         });
 
-        const logoFile = `${this.path}/icons/logo.png`;
+        const logoFile = `${Me.path}/icons/logo.png`;
         const logo = Gtk.Image.new_from_file(logoFile);
         logo.set_pixel_size(128);
         heroBox.append(logo);
@@ -695,8 +703,8 @@ export default class SpotifyControllerPrefs extends ExtensionPreferences {
                 try {
                     Gio.AppInfo.launch_default_for_uri(url, window.get_display().get_app_launch_context());
                 } catch (e) {
-                    try { 
-                        imports.gi.GLib.spawn_command_line_async(`xdg-open ${url}`); 
+                    try {
+                        GLib.spawn_command_line_async(`xdg-open ${url}`);
                     } catch (_) { }
                 }
             });
@@ -734,7 +742,7 @@ export default class SpotifyControllerPrefs extends ExtensionPreferences {
 
         group.add(new Adw.ActionRow({
             title: 'Narkagni',
-            subtitle: 'Author & Maintainer',
+            subtitle: 'Author &amp; Maintainer',
             icon_name: 'avatar-default-symbolic',
         }));
 
@@ -776,8 +784,8 @@ export default class SpotifyControllerPrefs extends ExtensionPreferences {
                 Gio.AppInfo.launch_default_for_uri('https://buymeacoffee.com/narkagni',
                     window.get_display().get_app_launch_context());
             } catch (e) {
-                try { 
-                    imports.gi.GLib.spawn_command_line_async('xdg-open https://buymeacoffee.com/narkagni'); 
+                try {
+                    GLib.spawn_command_line_async('xdg-open https://buymeacoffee.com/narkagni');
                 } catch (_) { }
             }
         });
@@ -815,29 +823,37 @@ export default class SpotifyControllerPrefs extends ExtensionPreferences {
     }
 
     _colorBtn(settings, key, defaultHex) {
-        const dialog = new Gtk.ColorDialog();
-        const btn = new Gtk.ColorDialogButton({ dialog, valign: Gtk.Align.CENTER });
+        const btn = new Gtk.ColorButton({ valign: Gtk.Align.CENTER, use_alpha: true });
         const rgba = new Gdk.RGBA();
-        
+
         let saved = defaultHex;
-        try { 
-            saved = settings.get_string(key); 
+        try {
+            saved = settings.get_string(key);
         } catch (e) { }
-        
+
         if (!saved || !rgba.parse(saved)) {
             rgba.parse(defaultHex);
         }
-        
+
         btn.set_rgba(rgba);
-        btn.connect('notify::rgba', () => settings.set_string(key, btn.get_rgba().to_string()));
-        
+        btn.connect('color-set', () => settings.set_string(key, btn.get_rgba().to_string()));
+
         settings.connect(`changed::${key}`, () => {
             const newRgba = new Gdk.RGBA();
             if (newRgba.parse(settings.get_string(key))) {
                 btn.set_rgba(newRgba);
             }
         });
-        
+
         return btn;
     }
+}
+
+
+function init() {}
+
+
+function fillPreferencesWindow(window) {
+    const prefs = new SpotifyControllerPrefs();
+    prefs.fillPreferencesWindow(window);
 }

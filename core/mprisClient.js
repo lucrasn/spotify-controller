@@ -17,8 +17,7 @@
  */
 
 
-import Gio from 'gi://Gio';
-import GLib from 'gi://GLib';
+const { Gio, GLib } = imports.gi;
 
 
 const MprisInterface = `
@@ -31,6 +30,9 @@ const MprisInterface = `
       <arg type="o" name="TrackId" direction="in"/>
       <arg type="x" name="Position" direction="in"/>
     </method>
+    <signal name="Seeked">
+      <arg type="x" name="Position"/>
+    </signal>
     <property name="Metadata"       type="a{sv}" access="read"/>
     <property name="PlaybackStatus" type="s"     access="read"/>
     <property name="Volume"         type="d"     access="readwrite"/>
@@ -42,7 +44,7 @@ const MprisInterface = `
 
 const MprisProxyWrapper = Gio.DBusProxy.makeProxyWrapper(MprisInterface);
 
-export class MprisClient {
+var MprisClient = class MprisClient {
     constructor(busName, onChange) {
         this.busName = busName;
 
@@ -147,7 +149,7 @@ export class MprisClient {
 
     destroy() {
         if (this._signalId) this._proxy.disconnect(this._signalId);
-        if (this._seekedId) this._proxy.disconnect(this._seekedId);
+        if (this._seekedId) this._proxy.disconnectSignal(this._seekedId);
         this._proxy = null;
     }
 }

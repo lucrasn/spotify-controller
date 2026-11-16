@@ -13,19 +13,24 @@
 * along with this program. If not, see https://www.gnu.org/licenses/. */
 
 
-import St from 'gi://St';
-import GLib from 'gi://GLib';
-import Pango from 'gi://Pango';
-import Clutter from 'gi://Clutter';
+const { St, GLib, Pango, Clutter } = imports.gi;
 
 
-export class PlaylistUI {
+var PlaylistUI = class PlaylistUI {
     constructor(playlistManager, settings, callbacks) {
         this._playlistManager = playlistManager;
         this._settings = settings;
         this._callbacks = callbacks;
         this._currentDetailPlaylist = null;
         this._buildUI();
+    }
+
+    _syncPointer() {
+        GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
+            if (typeof global.sync_pointer === 'function')
+                global.sync_pointer();
+            return GLib.SOURCE_REMOVE;
+        });
     }
 
     _createSearchBox(hint, onSearch) {
@@ -133,7 +138,7 @@ export class PlaylistUI {
 
         this.mainScrollView = new St.ScrollView({ hscrollbar_policy: St.PolicyType.NEVER, vscrollbar_policy: St.PolicyType.AUTOMATIC, x_expand: true, y_expand: true });
         this.mainListContainer = new St.BoxLayout({ vertical: true, style_class: 'playlist-list-container' });
-        this.mainScrollView.set_child(this.mainListContainer);
+        this.mainScrollView.add_actor(this.mainListContainer);
         this.playlistMainPage.add_child(this.mainScrollView);
 
 
@@ -168,7 +173,7 @@ export class PlaylistUI {
 
         this.detailScrollView = new St.ScrollView({ hscrollbar_policy: St.PolicyType.NEVER, vscrollbar_policy: St.PolicyType.AUTOMATIC, x_expand: true, y_expand: true });
         this.detailListContainer = new St.BoxLayout({ vertical: true, style_class: 'playlist-list-container' });
-        this.detailScrollView.set_child(this.detailListContainer);
+        this.detailScrollView.add_actor(this.detailListContainer);
         this.playlistDetailPage.add_child(this.detailScrollView);
 
 
@@ -224,7 +229,7 @@ export class PlaylistUI {
 
         this.likedScrollView = new St.ScrollView({ hscrollbar_policy: St.PolicyType.NEVER, vscrollbar_policy: St.PolicyType.AUTOMATIC, x_expand: true, y_expand: true });
         this.likedListContainer = new St.BoxLayout({ vertical: true, style_class: 'playlist-list-container' });
-        this.likedScrollView.set_child(this.likedListContainer);
+        this.likedScrollView.add_actor(this.likedListContainer);
         this.likedSongsPage.add_child(this.likedScrollView);
 
         this.container.add_child(this.playlistMainPage);
@@ -257,10 +262,7 @@ export class PlaylistUI {
             }
         }
 
-        GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
-            global.sync_pointer();
-            return GLib.SOURCE_REMOVE;
-        });
+        this._syncPointer();
     }
 
     updateStyles(artSize) {
@@ -427,10 +429,7 @@ export class PlaylistUI {
             this.mainListContainer.add_child(row);
         });
         
-        GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
-            global.sync_pointer();
-            return GLib.SOURCE_REMOVE;
-        });
+        this._syncPointer();
     }
 
     _renderPlaylistDetail(playlistName, query = '') {
@@ -565,10 +564,7 @@ export class PlaylistUI {
             });
         }
         
-        GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
-            global.sync_pointer();
-            return GLib.SOURCE_REMOVE;
-        });
+        this._syncPointer();
     }
 
     _renderLikedSongs(query = '') {
@@ -646,9 +642,6 @@ export class PlaylistUI {
             this.likedListContainer.add_child(row);
         });
         
-        GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
-            global.sync_pointer();
-            return GLib.SOURCE_REMOVE;
-        });
+        this._syncPointer();
     }
 }

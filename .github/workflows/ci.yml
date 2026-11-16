@@ -1,0 +1,74 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  static-checks:
+    name: Static, Schema & Packaging Checks
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install static & packaging tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libglib2.0-bin \
+            make \
+            python3 \
+            zip
+
+      - name: Run static, schema, and packaging checks
+        id: static
+        run: |
+          out="$(python3 tests/check_static.py)"
+          echo "$out"
+          target="$(echo "$out" | sed -n 's/^TARGET=//p' | tail -n 1)"
+          echo "target=${target}" >> "$GITHUB_OUTPUT"
+
+  gnome-42-integration:
+    name: GNOME 42 Integration Tests
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Detect shell target
+        id: detect
+        run: |
+          target="$(python3 -c "import json; v=json.load(open('metadata.json'))['shell-version']; print('gnome-42' if any(s.startswith('42') for s in v) else 'gnome-45+')")"
+          echo "Target shell version: ${target}"
+          echo "target=${target}" >> "$GITHUB_OUTPUT"
+
+      - name: Install GNOME 42 runtime & test dependencies
+        if: steps.detect.outputs.target == 'gnome-42'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            dbus-x11 \
+            gir1.2-adw-1 \
+            gir1.2-gdkpixbuf-2.0 \
+            gir1.2-gtk-4.0 \
+            gir1.2-soup-2.4 \
+            gjs \
+            gnome-shell \
+            libglib2.0-bin \
+            python3-gi \
+            xvfb
+
+      - name: Run GNOME 42 integration suite
+        if: steps.detect.outputs.target == 'gnome-42'
+        run: ./tests/gnome42_integration.sh
+
+      - name: Skip GNOME 42 suite for non-42 target
+        if: steps.detect.outputs.target != 'gnome-42'
+        run: echo "Skipping GNOME 42 runtime suite because metadata.json targets ${GITHUB_REF_NAME:-branch} (${{ steps.detect.outputs.target }})."

@@ -30,6 +30,9 @@ const MprisInterface = `
       <arg type="o" name="TrackId" direction="in"/>
       <arg type="x" name="Position" direction="in"/>
     </method>
+    <signal name="Seeked">
+      <arg type="x" name="Position"/>
+    </signal>
     <property name="Metadata"       type="a{sv}" access="read"/>
     <property name="PlaybackStatus" type="s"     access="read"/>
     <property name="Volume"         type="d"     access="readwrite"/>

@@ -17,11 +17,10 @@
  */
 
 
-import GLib from 'gi://GLib';
-import Gio  from 'gi://Gio';
+const { GLib, Gio } = imports.gi;
 
 
-export class QueueManager {
+var QueueManager = class QueueManager {
 
     constructor(onTrackChange) {
         this.onTrackChange = onTrackChange;

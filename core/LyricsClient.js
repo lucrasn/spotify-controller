@@ -17,13 +17,19 @@
  */
 
 
-import Soup from 'gi://Soup';
-import GLib from 'gi://GLib';
+try {
+    imports.gi.versions.Soup = '2.4';
+} catch (_) {}
+
+const { Soup } = imports.gi;
+const ExtensionUtils = imports.misc.extensionUtils;
+const Me = ExtensionUtils.getCurrentExtension();
+const { httpGet } = Me.imports.core.http;
 
 
 const decode = (data) => new TextDecoder().decode(data);
 
-export class LyricsClient {
+var LyricsClient = class LyricsClient {
 
     constructor() {
         this._session = new Soup.Session();
@@ -39,13 +45,12 @@ export class LyricsClient {
                 + `&album_name=${encodeURIComponent(album)}`
                 + `&duration=${duration}`;
 
-            const msg   = Soup.Message.new('GET', url);
-            const bytes = await this._session.send_and_read_async(msg, GLib.PRIORITY_DEFAULT, null);
+            const { statusCode, data: rawBytes } = await httpGet(this._session, url);
 
-            if (msg.status_code !== Soup.Status.OK)
+            if (statusCode !== Soup.Status.OK)
                 return await this._searchLyrics(title, artist, duration);
 
-            const data = JSON.parse(decode(bytes.get_data()));
+            const data = JSON.parse(decode(rawBytes));
             return data.syncedLyrics ? this._parseLRC(data.syncedLyrics) : null;
 
         } catch (e) {
@@ -57,10 +62,12 @@ export class LyricsClient {
         if (!this._session) return null;
 
         try {
-            const url   = `https://lrclib.net/api/search?q=${encodeURIComponent(title + ' ' + artist)}`;
-            const msg   = Soup.Message.new('GET', url);
-            const bytes = await this._session.send_and_read_async(msg, GLib.PRIORITY_DEFAULT, null);
-            const data  = JSON.parse(decode(bytes.get_data()));
+            const url = `https://lrclib.net/api/search?q=${encodeURIComponent(title + ' ' + artist)}`;
+            const { statusCode, data: rawBytes } = await httpGet(this._session, url);
+            if (statusCode !== Soup.Status.OK)
+                return null;
+
+            const data  = JSON.parse(decode(rawBytes));
 
             const match = data.find(item => Math.abs(item.duration - duration) < 3);
             return match?.syncedLyrics ? this._parseLRC(match.syncedLyrics) : null;

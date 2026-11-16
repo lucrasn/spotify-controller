@@ -17,11 +17,10 @@
  */
 
 
-import Gio from 'gi://Gio';
-import GLib from 'gi://GLib';
+const { Gio, GLib } = imports.gi;
 
 
-export class PlaylistManager {
+var PlaylistManager = class PlaylistManager {
 
     constructor() {
         const configDir    = GLib.get_user_config_dir();

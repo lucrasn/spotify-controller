@@ -13,29 +13,28 @@
 * along with this program. If not, see https://www.gnu.org/licenses/. */
 
 
-import St from 'gi://St';
-import Gio from 'gi://Gio';
-import GLib from 'gi://GLib';
-import Soup from 'gi://Soup';
-import Pango from 'gi://Pango';
-import GObject from 'gi://GObject';
-import Clutter from 'gi://Clutter';
-import GdkPixbuf from 'gi://GdkPixbuf';
-import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
+try {
+    imports.gi.versions.Soup = '2.4';
+} catch (_) {}
 
-import { MediaSlider } from './slider.js';
-import { PlaylistUI } from './playlistUI.js';
-import { LyricsWidget } from './LyricsWidget.js';
-import { PlaylistManager } from '../core/playlist.js';
-import { LyricsClient } from '../core/LyricsClient.js';
-import { QueueManager } from '../core/queueManager.js';
+const { St, Gio, GLib, Soup, Pango, GObject, Clutter, GdkPixbuf } = imports.gi;
+const PopupMenu = imports.ui.popupMenu;
+const ExtensionUtils = imports.misc.extensionUtils;
+const Me = ExtensionUtils.getCurrentExtension();
+
+const { MediaSlider } = Me.imports.ui.slider;
+const { PlaylistUI } = Me.imports.ui.playlistUI;
+const { LyricsWidget } = Me.imports.ui.LyricsWidget;
+const { PlaylistManager } = Me.imports.core.playlist;
+const { LyricsClient } = Me.imports.core.LyricsClient;
+const { QueueManager } = Me.imports.core.queueManager;
+const { httpGet } = Me.imports.core.http;
 
 
-Gio._promisify(Soup.Session.prototype, "send_and_read_async", "send_and_read_finish");
-Gio._promisify(Gio.File.prototype, "replace_contents_bytes_async", "replace_contents_finish");
-Gio._promisify(GdkPixbuf.Pixbuf, "new_from_stream_async", "new_from_stream_finish");
+Gio._promisify(Gio.File.prototype, 'read_async', 'read_finish');
+Gio._promisify(GdkPixbuf.Pixbuf, 'new_from_stream_async', 'new_from_stream_finish');
 
-export class MediaPopup {
+var MediaPopup = class MediaPopup {
     constructor(menu, settings, controlsCallback) {
         this._menu = menu;
         this._settings = settings;
@@ -57,9 +56,10 @@ export class MediaPopup {
         this._lyricsTimerId = null;
         this._overlayTimeoutId = null;
 
-        this._httpSession = new Soup.Session();
-        this._httpSession.timeout = 10;
-        this._httpSession.user_agent = 'Mozilla/5.0';
+        this._httpSession = new Soup.Session({
+            timeout: 10,
+            user_agent: 'Mozilla/5.0',
+        });
 
         this._cacheDir = GLib.build_filenamev([GLib.get_user_cache_dir(), "spotify-controller-art"]);
         if (GLib.mkdir_with_parents(this._cacheDir, 0o755) === -1) { }
@@ -97,23 +97,27 @@ export class MediaPopup {
             'lyrics-line-spacing'
         ];
 
+        this._settingsIds = [];
+        const connectSetting = (key, cb) => {
+            if (this._settings)
+                this._settingsIds.push(this._settings.connect(`changed::${key}`, cb));
+        };
+
         styleKeys.forEach(key => {
-            if (this._settings) {
-                this._settings.connect(`changed::${key}`, () => this._updateStyles());
-            }
+            connectSetting(key, () => this._updateStyles());
         });
 
-        this._settings.connect('changed::cover-art-radius', () => {
+        connectSetting('cover-art-radius', () => {
             this._updateStyles();
             this._checkRotationState();
         });
-        
-        this._settings.connect('changed::art-rotate-speed', () => this._checkRotationState());
-        this._settings.connect('changed::bg-mode', () => this._updateBackground());
-        this._settings.connect('changed::custom-bg-color', () => this._updateBackground());
-        this._settings.connect('changed::custom-header-text', () => this._updateHeaderText());
 
-        this._menu.connect('open-state-changed', (menu, isOpen) => {
+        connectSetting('art-rotate-speed', () => this._checkRotationState());
+        connectSetting('bg-mode', () => this._updateBackground());
+        connectSetting('custom-bg-color', () => this._updateBackground());
+        connectSetting('custom-header-text', () => this._updateHeaderText());
+
+        this._menuOpenChangedId = this._menu.connect('open-state-changed', (menu, isOpen) => {
             if (isOpen) {
                 this._checkRotationState();
                 this._manageLyricsTimer();
@@ -766,7 +770,7 @@ export class MediaPopup {
         this._playlistUI.updateStyles(artSize);
 
         this.controlIcons.forEach(icon => {
-            icon.style = (icon === this.playIcon) ? "color: var(--color-play-btn-icon) !important;" : `color: ${btnColor};`;
+            icon.style = (icon === this.playIcon) ? '' : `color: ${btnColor};`;
         });
         
         const fontCSS = headerFont ? `font-family: '${headerFont}';` : '';
@@ -900,12 +904,10 @@ export class MediaPopup {
                 if (file.query_exists(null)) {
                     fileReady = true;
                 } else {
-                    const msg = Soup.Message.new('GET', artUrl);
-                    msg.request_headers.append('User-Agent', 'Mozilla/5.0');
-                    const bytes = await this._httpSession.send_and_read_async(msg, GLib.PRIORITY_DEFAULT, null);
-                    
-                    if (msg.status_code === 200) {
-                        const [success] = file.replace_contents(bytes.get_data(), null, false, Gio.FileCreateFlags.REPLACE_DESTINATION, null);
+                    const { statusCode, data } = await httpGet(this._httpSession, artUrl, { 'User-Agent': 'Mozilla/5.0' });
+
+                    if (statusCode === Soup.Status.OK) {
+                        const [success] = file.replace_contents(data, null, false, Gio.FileCreateFlags.REPLACE_DESTINATION, null);
                         if (success) fileReady = true;
                     }
                 }
@@ -921,7 +923,7 @@ export class MediaPopup {
                         const pixbuf = GdkPixbuf.Pixbuf.new_from_file(path);
                         resultColor = this._extractColor(pixbuf);
                     } else {
-                        const inputStream = await targetFile.read_async(null, null);
+                        const inputStream = await targetFile.read_async(GLib.PRIORITY_DEFAULT, null);
                         const pixbuf = await GdkPixbuf.Pixbuf.new_from_stream_async(inputStream, null);
                         if (pixbuf) resultColor = this._extractColor(pixbuf);
                     }
@@ -971,6 +973,14 @@ export class MediaPopup {
     }
 
     destroy() {
+        if (this._menuOpenChangedId && this._menu) {
+            this._menu.disconnect(this._menuOpenChangedId);
+            this._menuOpenChangedId = null;
+        }
+        if (this._settings && this._settingsIds) {
+            this._settingsIds.forEach(id => this._settings.disconnect(id));
+            this._settingsIds = [];
+        }
         if (this._httpSession) {
             this._httpSession.abort();
             this._httpSession = null;

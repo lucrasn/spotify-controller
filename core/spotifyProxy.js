@@ -17,7 +17,9 @@
  */
 
 
-import { MprisClient } from './mprisClient.js';
+const ExtensionUtils = imports.misc.extensionUtils;
+const Me = ExtensionUtils.getCurrentExtension();
+const { MprisClient } = Me.imports.core.mprisClient;
 
 
 const SpotifyKeys = {
@@ -31,7 +33,7 @@ const SpotifyKeys = {
 };
 
 
-export class SpotifyProxy {
+var SpotifyProxy = class SpotifyProxy {
 
     constructor(onChange) {
         this.client           = new MprisClient(SpotifyKeys.BUS_NAME, onChange);

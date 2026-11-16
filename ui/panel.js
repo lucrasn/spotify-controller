@@ -13,24 +13,24 @@
 * along with this program. If not, see https://www.gnu.org/licenses/. */
 
 
-import St from 'gi://St';
-import GLib from 'gi://GLib';
-import Clutter from 'gi://Clutter';
-import GObject from 'gi://GObject';
-import * as Main from 'resource:///org/gnome/shell/ui/main.js';
-import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
+const { St, GLib, Clutter, GObject } = imports.gi;
+const Main = imports.ui.main;
+const PanelMenu = imports.ui.panelMenu;
+const ExtensionUtils = imports.misc.extensionUtils;
+const Me = ExtensionUtils.getCurrentExtension();
 
-import { MediaPopup } from './popup.js';
-import { SpotifyProxy } from '../core/spotifyProxy.js';
+const { MediaPopup } = Me.imports.ui.popup;
+const { SpotifyProxy } = Me.imports.core.spotifyProxy;
 
 
-export const MediaIndicator = GObject.registerClass(
+var MediaIndicator = GObject.registerClass(
     class MediaIndicator extends PanelMenu.Button {
         
         _init(settings) {
             super._init(0.5, 'Media Controller');
             this.add_style_class_name('spotify-controller-panel');
             this._settings = settings;
+            this._settingsIds = [];
 
             this._buildPanelUI();
 
@@ -57,13 +57,17 @@ export const MediaIndicator = GObject.registerClass(
                 }
             });
 
-            this._settings.connect('changed::button-spacing', () => this._applySpacing());
-            this._settings.connect('changed::label-margin', () => this._applySpacing());
-            this._settings.connect('changed::show-play-pause', () => this._applyVisibility());
-            this._settings.connect('changed::show-prev', () => this._applyVisibility());
-            this._settings.connect('changed::show-next', () => this._applyVisibility());
-            this._settings.connect('changed::show-panel-title', () => this._updateState());
-            this._settings.connect('changed::show-panel-artist', () => this._updateState());
+            const connectSetting = (key, cb) => {
+                this._settingsIds.push(this._settings.connect(`changed::${key}`, cb));
+            };
+
+            connectSetting('button-spacing', () => this._applySpacing());
+            connectSetting('label-margin', () => this._applySpacing());
+            connectSetting('show-play-pause', () => this._applyVisibility());
+            connectSetting('show-prev', () => this._applyVisibility());
+            connectSetting('show-next', () => this._applyVisibility());
+            connectSetting('show-panel-title', () => this._updateState());
+            connectSetting('show-panel-artist', () => this._updateState());
 
             this._demandsAttentionId = global.display.connect('window-demands-attention', (display, window) => {
                 if (this._isFocusGrabbed) {
@@ -93,7 +97,7 @@ export const MediaIndicator = GObject.registerClass(
             ];
 
             visualKeys.forEach(key => {
-                this._settings.connect(`changed::${key}`, () => {
+                connectSetting(key, () => {
                     if (!this.activeProxy) return;
 
                     const isLyricsKey = key.startsWith('lyrics-');
@@ -306,7 +310,7 @@ export const MediaIndicator = GObject.registerClass(
             this._applySpacing();
             this._applyVisibility();
 
-            this._settings.connect('changed::layout-order', () => {
+            this._settingsIds.push(this._settings.connect('changed::layout-order', () => {
                 this.box.remove_child(this.labelBtn);
                 this.box.remove_child(this.btnBox);
                 
@@ -321,7 +325,7 @@ export const MediaIndicator = GObject.registerClass(
                     this.labelBtn.x_align = Clutter.ActorAlign.START;
                 }
                 this._applySpacing();
-            });
+            }));
         }
 
         _executeMouseAction(button) {
@@ -434,6 +438,11 @@ export const MediaIndicator = GObject.registerClass(
         }
 
         destroy() {
+            if (this._settings && this._settingsIds) {
+                this._settingsIds.forEach(id => this._settings.disconnect(id));
+                this._settingsIds = [];
+            }
+
             if (this._demandsAttentionId) {
                 global.display.disconnect(this._demandsAttentionId);
                 this._demandsAttentionId = null;

@@ -13,11 +13,8 @@
 * along with this program. If not, see https://www.gnu.org/licenses/. */
 
 
-import St from 'gi://St';
-import GLib from 'gi://GLib';
-import Cairo from 'gi://cairo';
-import GObject from 'gi://GObject';
-import Clutter from 'gi://Clutter';
+const { St, GLib, GObject, Clutter } = imports.gi;
+const Cairo = imports.cairo;
 
 
 const formatTime = (seconds) => {
@@ -33,7 +30,7 @@ const WAVE_FREQUENCY = 0.08;
 const SLIDER_HEIGHT = 30;
 const SIDE_PADDING = 15;
 
-export const MediaSlider = GObject.registerClass(
+var MediaSlider = GObject.registerClass(
     { GTypeName: 'MediaSlider' },
     class MediaSlider extends St.BoxLayout {
 
@@ -43,6 +40,7 @@ export const MediaSlider = GObject.registerClass(
             this._onSeek = onSeek;
             this._elapsedLabel = elapsedLabel;
             this._settings = settings;
+            this._settingsIds = [];
 
             this._duration = 1;
             this._position = 0;
@@ -55,8 +53,8 @@ export const MediaSlider = GObject.registerClass(
             this._tickId = null;
 
             this._buildUI();
-            
-            this.connect('destroy', () => this.destroy());
+
+            this.connect('destroy', () => this._cleanup());
         }
 
         _buildUI() {
@@ -74,7 +72,9 @@ export const MediaSlider = GObject.registerClass(
             
             if (this._settings) {
                 keys.forEach(key => {
-                    this._settings.connect(`changed::${key}`, () => this._canvas.queue_repaint());
+                    this._settingsIds.push(
+                        this._settings.connect(`changed::${key}`, () => this._canvas.queue_repaint())
+                    );
                 });
             }
 
@@ -355,8 +355,16 @@ export const MediaSlider = GObject.registerClass(
             return Clutter.EVENT_STOP;
         }
 
-        destroy() {
+        _cleanup() {
             this._stopAnimation();
+            if (this._settings && this._settingsIds) {
+                this._settingsIds.forEach(id => this._settings.disconnect(id));
+                this._settingsIds = [];
+            }
+        }
+
+        destroy() {
+            this._cleanup();
             super.destroy();
         }
     }

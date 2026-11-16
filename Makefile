@@ -25,10 +25,15 @@ install: build-schemas
 pack: build-schemas
 	zip -r $(UUID).zip . \
 		-x "*.git*" \
+		-x ".github/*" \
+		-x "tests/*" \
 		-x "Makefile" \
 		-x "README.md" \
 		-x "media/*" \
 		-x "*.zip"
+
+test:
+	./tests/run_all.sh
 
 uninstall:
 	rm -rf $(INSTALL_PATH)

@@ -378,12 +378,21 @@ var MediaPopup = class MediaPopup {
         this._sliderItem.add_child(sliderBox);
         
         this._playlistItem = new PopupMenu.PopupBaseMenuItem({ reactive: false, can_focus: false });
+        this._playlistItem.actor.x_align = Clutter.ActorAlign.CENTER;
         this._playlistItem.actor.add_child(this._playlistUI.container);
         
         this._contentBox.add_child(this._playlistItem.actor);
         this._contentBox.add_child(this._sliderItem.actor);
         
         this._buildControls();
+
+        // GNOME 42 PopupBaseMenuItem reserves a left ornament column; collapse it so content centers cleanly
+        for (const item of [this._headerItem, this._artItem, this._sliderItem, this._playlistItem, this._controlItem]) {
+            if (item?._ornamentLabel) {
+                item._ornamentLabel.hide();
+                item._ornamentLabel.set_width(0);
+            }
+        }
         
         this._playlistItem.actor.hide();
         this._updateStyles();

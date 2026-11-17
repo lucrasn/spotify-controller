@@ -80,6 +80,30 @@ var MediaIndicator = GObject.registerClass(
 
             this._previewTimeoutId = null;
             this._openDebounceId = null;
+            this._ignoreMenuReleaseButton = null;
+            this._ignoreMenuPressTime = null;
+
+            this._menuOpenChangedId = this.menu.connect('open-state-changed', (_menu, isOpen) => {
+                if (isOpen) {
+                    this._ignoreMenuReleaseButton = null;
+                    this._ignoreMenuPressTime = null;
+                    return;
+                }
+                const ev = Clutter.get_current_event();
+                if (!ev) return;
+                const evType = ev.type();
+                if (evType !== Clutter.EventType.BUTTON_PRESS && evType !== Clutter.EventType.TOUCH_BEGIN) {
+                    return;
+                }
+                const target = global?.stage?.get_event_actor
+                    ? global.stage.get_event_actor(ev)
+                    : ev.get_source?.();
+                if (target && this.box && this.box.contains(target) &&
+                    (!this.btnBox || !this.btnBox.contains(target))) {
+                    this._ignoreMenuReleaseButton = (evType === Clutter.EventType.BUTTON_PRESS) ? ev.get_button() : 1;
+                    this._ignoreMenuPressTime = ev.get_time();
+                }
+            });
 
             const visualKeys = [
                 'bg-mode', 'custom-bg-color', 'cover-art-size', 'cover-art-radius',
@@ -233,12 +257,8 @@ var MediaIndicator = GObject.registerClass(
                 return Clutter.EVENT_STOP;
             });
 
-            this.box.connect('button-press-event', () => Clutter.EVENT_STOP);
-            this.box.connect('button-release-event', (actor, event) => {
-                const button = event.get_button();
-                this._executeMouseAction(button);
-                return Clutter.EVENT_STOP;
-            });
+            this.box.connect('button-press-event', (actor, event) => this._onPanelButtonPress(event));
+            this.box.connect('button-release-event', (actor, event) => this._onPanelButtonRelease(event));
 
             this.btnBox = new St.BoxLayout();
 
@@ -288,12 +308,8 @@ var MediaIndicator = GObject.registerClass(
             this.label = new St.Label({ text: 'Spotify', y_align: Clutter.ActorAlign.CENTER });
             this.labelBtn.set_child(this.label);
             
-            this.labelBtn.connect('button-press-event', () => Clutter.EVENT_STOP);
-            this.labelBtn.connect('button-release-event', (actor, event) => {
-                const button = event.get_button();
-                this._executeMouseAction(button);
-                return Clutter.EVENT_STOP;
-            });
+            this.labelBtn.connect('button-press-event', (actor, event) => this._onPanelButtonPress(event));
+            this.labelBtn.connect('button-release-event', (actor, event) => this._onPanelButtonRelease(event));
 
             const layoutOrder = this._settings.get_string('layout-order');
             if (layoutOrder === 'buttons-end') {
@@ -328,7 +344,25 @@ var MediaIndicator = GObject.registerClass(
             }));
         }
 
+        _onPanelButtonPress(event) {
+            if (this._ignoreMenuPressTime !== null && event.get_time() !== this._ignoreMenuPressTime) {
+                this._ignoreMenuReleaseButton = null;
+                this._ignoreMenuPressTime = null;
+            }
+            return Clutter.EVENT_STOP;
+        }
+
+        _onPanelButtonRelease(event) {
+            const button = event.get_button();
+            this._executeMouseAction(button);
+            return Clutter.EVENT_STOP;
+        }
+
         _executeMouseAction(button) {
+            const ignoreMenuButton = this._ignoreMenuReleaseButton;
+            this._ignoreMenuReleaseButton = null;
+            this._ignoreMenuPressTime = null;
+
             let action = 'none';
             try {
                 if (button === 1) action = this._settings.get_string('left-click-action');
@@ -346,7 +380,9 @@ var MediaIndicator = GObject.registerClass(
                         GLib.source_remove(this._previewTimeoutId);
                         this._previewTimeoutId = null;
                     }
-                    this.menu.toggle();
+                    if (ignoreMenuButton !== button) {
+                        this.menu.toggle();
+                    }
                     break;
                 case 'play-pause':
                     this.activeProxy?.controls().playPause();
@@ -477,6 +513,10 @@ var MediaIndicator = GObject.registerClass(
             }
             if (this.proxies) {
                 this.proxies.forEach(p => { if (p.destroy) p.destroy(); });
+            }
+            if (this._menuOpenChangedId && this.menu) {
+                this.menu.disconnect(this._menuOpenChangedId);
+                this._menuOpenChangedId = null;
             }
             if (this._popup) {
                 this._popup.destroy();

@@ -76,10 +76,7 @@ var MediaPopup = class MediaPopup {
                 this._openUri(uri);
             },
             getLastTrackInfo: () => this._lastTrackInfo,
-            onCurrentUnliked: () => {
-                this._currentLiked = false;
-                this._updateLikedBtnStyle();
-            }
+            onCurrentUnliked: () => {}
         });
 
         this._buildUI();
@@ -319,48 +316,6 @@ var MediaPopup = class MediaPopup {
         elapsedBox.add_child(this.elapsedLabel);
 
         const spacer = new St.Widget({ x_expand: true });
-        const plusBox = new St.BoxLayout({ y_align: Clutter.ActorAlign.CENTER, style_class: 'popup-time-inner-box' });
-
-        this.likedBtn = new St.Button({
-            child: new St.Icon({ icon_name: 'emblem-favorite-symbolic', icon_size: 14 }),
-            style_class: 'playlist-icon-btn btn-pink-hover',
-            reactive: true,
-            track_hover: true
-        });
-        
-        this.likedBtn.connect('clicked', () => {
-            if (!this._lastTrackInfo) return;
-            const nowLiked = this._playlistManager.toggleLike(this._lastTrackInfo);
-            this._currentLiked = nowLiked;
-            this._updateLikedBtnStyle();
-            if (this._popupMode === 'liked') this._playlistUI.setMode('liked');
-        });
-        
-        this.likedBtn.connect('button-release-event', (actor, event) => {
-            if (event.get_button() === 3) {
-                this.setPopupMode('liked');
-                return Clutter.EVENT_STOP;
-            }
-            return Clutter.EVENT_PROPAGATE;
-        });
-
-        this.addPlaylistBtn = new St.Button({
-            child: new St.Icon({ icon_name: 'list-add-symbolic', icon_size: 14 }),
-            style_class: 'playlist-icon-btn btn-green-hover',
-            reactive: true,
-            track_hover: true
-        });
-        
-        this.addPlaylistBtn.connect('clicked', () => {
-            if (this._popupMode === 'playlist' || this._popupMode === 'liked') {
-                this.setPopupMode('normal');
-            } else {
-                this.setPopupMode('playlist');
-            }
-        });
-
-        plusBox.add_child(this.likedBtn);
-        plusBox.add_child(this.addPlaylistBtn);
 
         const totalBox = new St.BoxLayout({ y_align: Clutter.ActorAlign.CENTER, style_class: 'popup-total-box' });
         this.totalLabel = new St.Label({ text: '0:00', style_class: 'time-label' });
@@ -368,7 +323,6 @@ var MediaPopup = class MediaPopup {
 
         timeBox.add_child(elapsedBox);
         timeBox.add_child(spacer);
-        timeBox.add_child(plusBox);
         timeBox.add_child(totalBox);
 
         this.slider = new MediaSlider((val) => this._callbacks.seek(val), this.elapsedLabel, this._settings);
@@ -573,15 +527,6 @@ var MediaPopup = class MediaPopup {
             );
         } catch (e) {
             console.error("OpenUri Error:", e);
-        }
-    }
-
-    _updateLikedBtnStyle() {
-        if (!this.likedBtn) return;
-        if (this._currentLiked) {
-            this.likedBtn.add_style_class_name('liked-btn-active');
-        } else {
-            this.likedBtn.remove_style_class_name('liked-btn-active');
         }
     }
 
@@ -805,12 +750,6 @@ var MediaPopup = class MediaPopup {
         if (!info) return;
         
         this._lastTrackInfo = info;
-        const nowLiked = this._playlistManager.isLiked(info);
-        
-        if (this._currentLiked !== nowLiked) {
-            this._currentLiked = nowLiked;
-            this._updateLikedBtnStyle();
-        }
 
         const currentHash = info.title + info.artist;
         if (this._firstSyncHash !== currentHash) {

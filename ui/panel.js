@@ -394,8 +394,15 @@ var MediaIndicator = GObject.registerClass(
                 let info = spotifyProxy.getInfo();
 
                 if (info && info.status !== 'Stopped') {
+                    const wasHidden = !this.visible;
                     this.activeProxy = spotifyProxy;
                     this.show();
+
+                    if (wasHidden && this._settings.get_string('position') === 'right') {
+                        const rightBox = Main.panel._rightBox;
+                        if (rightBox?.contains(this.container))
+                            rightBox.set_child_at_index(this.container, 0);
+                    }
                     
                     const isPlaying = info.status === 'Playing';
                     this.playIcon.icon_name = isPlaying ? 'media-playback-pause-symbolic' : 'media-playback-start-symbolic';

@@ -65,20 +65,21 @@ class MyMediaExtension {
      *   'left'          → left panel box, index 1
      *   'center-before' → centre panel box, prepended  (index 0)
      *   'center'        → centre panel box, appended   (index last)
-     *   anything else   → right panel box, index 1
+     *   anything else   → right panel box, leftmost    (index 0)
      *
-     * A one-second deferred timeout is used for centre placement because
-     * GNOME Shell's panel layout is not fully settled at enable() time.
+     * A one-second deferred timeout is used because GNOME Shell's panel
+     * layout and other extensions may not be settled at enable() time.
      */
     _setupIndicator() {
         this._indicator = new MediaIndicator(this._settings);
 
         const pos = this._settings.get_string('position');
         let section = 'right';
-        let index   = 1;
+        let index   = 0;
 
         if (pos === 'left') {
             section = 'left';
+            index   = 1;
         } else if (pos.startsWith('center')) {
             section = 'center';
             index   = pos === 'center-before' ? 0 : 1;
@@ -86,7 +87,7 @@ class MyMediaExtension {
 
         Main.panel.addToStatusArea('spotify-controller', this._indicator, index, section);
 
-        // Deferred re-index for centre placement
+        // Deferred re-index so placement remains consistent after other extensions load
         if (this._bootTimeout) {
             GLib.source_remove(this._bootTimeout);
             this._bootTimeout = null;
@@ -105,6 +106,8 @@ class MyMediaExtension {
                 } else {
                     box.set_child_at_index(this._indicator.container, box.get_n_children() - 1);
                 }
+            } else if (section === 'right') {
+                Main.panel._rightBox.set_child_at_index(this._indicator.container, 0);
             }
 
             return GLib.SOURCE_REMOVE;

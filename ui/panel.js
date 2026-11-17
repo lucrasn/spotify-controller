@@ -82,6 +82,16 @@ var MediaIndicator = GObject.registerClass(
             this._openDebounceId = null;
             this._ignoreMenuReleaseButton = null;
             this._ignoreMenuPressTime = null;
+            this._repositionIdleId = null;
+            this._isRepositioning = false;
+            this._rightBoxActorAddedId = null;
+
+            if (this._settings.get_string('position') === 'right' && Main.panel._rightBox?.connect) {
+                this._rightBoxActorAddedId = Main.panel._rightBox.connect('actor-added', () => {
+                    if (!this._isRepositioning)
+                        this._scheduleRightBoxSync();
+                });
+            }
 
             this._menuOpenChangedId = this.menu.connect('open-state-changed', (_menu, isOpen) => {
                 if (isOpen) {
@@ -422,6 +432,44 @@ var MediaIndicator = GObject.registerClass(
             this.nextBtn.visible = this._settings.get_boolean('show-next');
         }
 
+        _scheduleRightBoxSync() {
+            if (this._repositionIdleId) return;
+            this._repositionIdleId = GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
+                this._repositionIdleId = null;
+                this.syncRightBoxPosition();
+                return GLib.SOURCE_REMOVE;
+            });
+        }
+
+        /**
+         * Keeps the indicator immediately after the stopwatch extension when
+         * present in _rightBox (ahead of appindicator/tray icons), or at index 0.
+         */
+        syncRightBoxPosition() {
+            if (!this._settings || this._settings.get_string('position') !== 'right') return;
+            const rightBox = Main.panel._rightBox;
+            if (!rightBox || !this.container || !rightBox.contains?.(this.container)) return;
+
+            const children = rightBox.get_children?.() ?? [];
+            const selfIdx = children.indexOf(this.container);
+            if (selfIdx === -1) return;
+
+            const anchor = Main.panel.statusArea?.['stopwatch@aliakseiz.github.com']?.container;
+            const anchorIdx = (anchor && anchor !== this.container) ? children.indexOf(anchor) : -1;
+
+            this._isRepositioning = true;
+            try {
+                if (anchorIdx !== -1) {
+                    if (selfIdx !== anchorIdx + 1)
+                        rightBox.set_child_above_sibling(this.container, anchor);
+                } else if (selfIdx !== 0) {
+                    rightBox.set_child_at_index(this.container, 0);
+                }
+            } finally {
+                this._isRepositioning = false;
+            }
+        }
+
         _updateState() {
             try {
                 if (!this.label || !this.get_parent()) return;
@@ -434,11 +482,8 @@ var MediaIndicator = GObject.registerClass(
                     this.activeProxy = spotifyProxy;
                     this.show();
 
-                    if (wasHidden && this._settings.get_string('position') === 'right') {
-                        const rightBox = Main.panel._rightBox;
-                        if (rightBox?.contains(this.container))
-                            rightBox.set_child_at_index(this.container, 0);
-                    }
+                    if (wasHidden && this._settings.get_string('position') === 'right')
+                        this.syncRightBoxPosition();
                     
                     const isPlaying = info.status === 'Playing';
                     this.playIcon.icon_name = isPlaying ? 'media-playback-pause-symbolic' : 'media-playback-start-symbolic';
@@ -510,6 +555,14 @@ var MediaIndicator = GObject.registerClass(
             if (this._openDebounceId) {
                 GLib.source_remove(this._openDebounceId);
                 this._openDebounceId = null;
+            }
+            if (this._repositionIdleId) {
+                GLib.source_remove(this._repositionIdleId);
+                this._repositionIdleId = null;
+            }
+            if (this._rightBoxActorAddedId && Main.panel._rightBox?.disconnect) {
+                Main.panel._rightBox.disconnect(this._rightBoxActorAddedId);
+                this._rightBoxActorAddedId = null;
             }
             if (this.proxies) {
                 this.proxies.forEach(p => { if (p.destroy) p.destroy(); });
